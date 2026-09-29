@@ -1,0 +1,193 @@
+# kvx - Key-Value Store Docker Compose
+# 10 KV 后端：嵌入式（badger/bbolt/leveldb/pebble/pogreb）无需容器，其余网络型部署于此
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ===== Redis（单机）=====
+  redis:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:8.4
+    cpus: "0.5"
+    container_name: hubx-kv-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass redis123456 --appendonly yes --loglevel notice
+    volumes:
+      - ./data/redis/data:/data
+      - ./data/redis/logs:/logs
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis123456", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ===== Redis Cluster（3主3从）=====
+  redis-cluster-node-1:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:8.4
+    container_name: hubx-kv-redis-cluster-1
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --port 7001 --requirepass redis123456
+    ports:
+      - "7001:7001"
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+  redis-cluster-node-2:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:8.4
+    container_name: hubx-kv-redis-cluster-2
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --port 7002 --requirepass redis123456
+    ports:
+      - "7002:7002"
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+  redis-cluster-node-3:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/redis:8.4
+    container_name: hubx-kv-redis-cluster-3
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --port 7003 --requirepass redis123456
+    ports:
+      - "7003:7003"
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ===== Dragonfly（单机 + Cluster）=====
+  dragonfly:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/dragonflydb/dragonfly:v1.25.3
+    cpus: "0.5"
+    container_name: hubx-kv-dragonfly
+    ports:
+      - "6381:6379"
+      - "9175:9175"
+    volumes:
+      - ./data/dragonfly:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ===== KeyDB（单机）=====
+  keydb:
+    image: ewrise/keydb:latest
+    cpus: "0.5"
+    container_name: hubx-kv-keydb
+    ports:
+      - "6380:6379"
+    command: keydb-server --requirepass keydb123456
+    healthcheck:
+      test: ["CMD", "keydb-cli", "-a", "keydb123456", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ===== Memcached =====
+  memcached:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/memcached:1.6
+    cpus: "0.3"
+    container_name: hubx-kv-memcached
+    ports:
+      - "11211:11211"
+    healthcheck:
+      test: ["CMD", "memcached-tool", "127.0.0.1:11211", "stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 128m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ===== NATS JetStream =====
+  nats:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nats:2.10
+    cpus: "0.5"
+    container_name: hubx-kv-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: >
+      --jetstream
+      --store_dir=/data
+      --jsmem storage 256mb
+      --http_port 8222
+    volumes:
+      - ./data/nats:/data
+    healthcheck:
+      test: ["CMD", "nats", "--server", "nats://localhost:4222", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ===== etcd =====
+  etcd:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/gcr.io/etcd-development/etcd:v3.5.0
+    cpus: "0.5"
+    container_name: hubx-kv-etcd
+    command:
+      - /usr/local/bin/etcd
+      - --name=default
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=default=http://etcd:2380
+      - --initial-cluster-state=new
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - ./data/etcd:/etcd-data
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/etcdctl", "endpoint", "health", "--endpoints=http://127.0.0.1:2379"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ===== Consul =====
+  consul:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/hashicorp/consul:1.22.4
+    cpus: "0.5"
+    container_name: hubx-kv-consul
+    ports:
+      - "8500:8500"
+    environment:
+      CONSUL_BIND_INTERFACE: eth0
+    command: agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0
+    volumes:
+      - ./data/consul/data:/consul/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/v1/status/leader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+networks:
+  default:
+    name: hubx-kvx-net
+    driver: bridge
