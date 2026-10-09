@@ -1,0 +1,40 @@
+# kvx/nats（NATS JetStream） - 独立开发环境
+# 用法：scripts/start.sh / scripts/verify.sh / scripts/stop.sh
+# 服务定义与 kvx/docker-compose.yml 中对应段一致，只改了容器名与网络名前缀，
+# 避免与根 compose（一次起全套）重名冲突。
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  nats:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nats:2.10
+    cpus: "0.5"
+    container_name: hubx-kvx-nats
+    ports:
+      - "${HOST_PORT:-4222}:4222"
+      - "8222:8222"
+    command: >
+      --jetstream
+      --store_dir=/data
+      --jsmem storage 256mb
+      --http_port 8222
+    volumes:
+      - ./data/nats:/data
+    healthcheck:
+      test: ["CMD", "nats", "--server", "nats://localhost:4222", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+networks:
+  default:
+    name: hubx-kvx-nats-net
+    driver: bridge

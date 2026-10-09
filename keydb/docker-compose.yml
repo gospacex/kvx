@@ -1,0 +1,33 @@
+# kvx/keydb（KeyDB） - 独立开发环境
+# 用法：scripts/start.sh / scripts/verify.sh / scripts/stop.sh
+# 服务定义与 kvx/docker-compose.yml 中对应段一致，只改了容器名与网络名前缀，
+# 避免与根 compose（一次起全套）重名冲突。
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  keydb:
+    image: ewrise/keydb:latest
+    cpus: "0.5"
+    container_name: hubx-kvx-keydb
+    ports:
+      - "${HOST_PORT:-6380}:6379"
+    command: keydb-server --requirepass keydb123456
+    healthcheck:
+      test: ["CMD", "keydb-cli", "-a", "keydb123456", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *default-logging
+
+networks:
+  default:
+    name: hubx-kvx-keydb-net
+    driver: bridge
