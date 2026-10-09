@@ -7,6 +7,7 @@ require (
 	github.com/gospacex/configx v0.0.0
 	github.com/gospacex/kvx v0.0.0
 	github.com/gospacex/logx v0.0.0
+	github.com/gospacex/traceflag v0.0.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/otel v1.29.0
 	go.opentelemetry.io/otel/trace v1.29.0
@@ -31,7 +32,6 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gospacex/traceflag v0.0.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect

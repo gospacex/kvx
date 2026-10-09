@@ -81,7 +81,10 @@ func newByDriver(cfg *Config) (KVStore, error) {
 
 // KVSection 对应 configx.yaml 中的 kvx 配置节
 type KVSection struct {
-	KVStores map[string]*Config `yaml:"stores"`
+	// mapstructure 标签不可省：configx 的 Unmarshal 走 viper → mapstructure，
+	// 只用 yaml 标签时 mapstructure 无法把 "stores" 匹配到字段 KVStores，
+	// 结果是静默零值 —— 表现为 ReadAndCreate 恒报 "no stores configured"。
+	KVStores map[string]*Config `yaml:"stores" json:"stores" mapstructure:"stores"`
 }
 
 // ReadConfig 加载配置（兼容老接口）

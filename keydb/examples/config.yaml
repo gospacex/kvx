@@ -1,0 +1,12 @@
+# kvx keydb 示例配置
+#
+# 调用链：enable_trace 打开后，KV 操作会产 db.kvx.* span；
+# 宿主侧装配 otelx（TracerProvider + 传播器）后即可在 Jaeger 看到，
+# 未装配时落在 noop provider 上，不影响功能。
+kvx:
+  stores:
+    default:
+      driver: keydb
+      addr: "127.0.0.1:6380"
+      password: "keydb123456"
+      enable_trace: true
